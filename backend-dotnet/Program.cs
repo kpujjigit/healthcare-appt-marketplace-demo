@@ -23,14 +23,10 @@ builder.WebHost.UseSentry(options =>
     options.Environment = environment;
     options.TracesSampleRate = 1.0;
     options.SendDefaultPii = false;
-    // Auto-instrument incoming requests so the ASP.NET middleware reads the
-    // sentry-trace + baggage headers and attaches the parent transaction.
     options.AutoSessionTracking = false;
 });
 
 var app = builder.Build();
-
-app.UseSentryTracing();
 
 app.MapGet("/", () => "Healthcare Appointment Marketplace — backend tier (.NET 8)");
 app.MapGet("/health", () => Results.Ok(new { ok = true }));

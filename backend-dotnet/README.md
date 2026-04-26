@@ -21,8 +21,10 @@ dotnet run
 Then in your `frontend/.env`, set:
 
 ```
-BACKEND_URL=http://localhost:5050
+BACKEND_URL=http://127.0.0.1:5050
 ```
+
+**Use `127.0.0.1`, not `localhost`** — Node 18+ `fetch` resolves `localhost` to `::1` (IPv6) first, and the .NET host binds to `0.0.0.0` (IPv4 only), so a `localhost` URL fails silently into the frontend's synthetic-backend fallback.
 
 …and restart `npm run dev`. Every frontend route now forwards to its backend
 counterpart, and Sentry stitches the two-tier spans into a single trace.

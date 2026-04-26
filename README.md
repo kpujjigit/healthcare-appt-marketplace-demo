@@ -70,7 +70,10 @@ dotnet run                 # http://localhost:5050
 
 # frontend (in a separate terminal)
 cd frontend
-cp .env.example .env       # set NEXT_PUBLIC_SENTRY_DSN and BACKEND_URL=http://localhost:5050
+cp .env.example .env       # set NEXT_PUBLIC_SENTRY_DSN and BACKEND_URL=http://127.0.0.1:5050
+                           # IMPORTANT: use 127.0.0.1, not localhost — Node 18+ fetch resolves
+                           # localhost to ::1 (IPv6) first, and the .NET host binds IPv4 only.
+                           # localhost will fail silently into the synthetic fallback.
 npm install
 npm run dev
 

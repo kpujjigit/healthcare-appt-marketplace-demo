@@ -23,12 +23,13 @@ public static class SpanHelpers
         return transaction;
     }
 
+    // Sentry .NET 5+ uses SetData for span attributes (SetExtra is event-level).
     public static void SetAttr(this ISpan span, string key, string value) =>
-        span.SetExtra(key, value);
+        span.SetData(key, value);
 
     public static void SetAttr(this ISpan span, string key, bool value) =>
-        span.SetExtra(key, value);
+        span.SetData(key, value);
 
     public static void SetAttr(this ISpan span, string key, int value) =>
-        span.SetExtra(key, value);
+        span.SetData(key, value);
 }
