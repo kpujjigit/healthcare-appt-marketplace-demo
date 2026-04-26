@@ -3,11 +3,19 @@ using Sentry;
 
 namespace HealthcareApi.Endpoints;
 
+public record VerifyBackendRequest(
+    string? verificationId,
+    string? carrier,
+    string? planType,
+    string? verificationPath,
+    string? patientTenureBucket
+);
+
 public static class InsuranceVerifyEndpoint
 {
     public static IEndpointRouteBuilder MapInsuranceVerify(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/insurance/verify", async () =>
+        app.MapPost("/api/insurance/verify", async (VerifyBackendRequest? req) =>
         {
             var span = SpanHelpers.StartBackendSpan("insurance.verify.backend");
             try
@@ -38,6 +46,10 @@ public static class InsuranceVerifyEndpoint
                 span.SetAttr("status", failure.Outcome.ToString().ToLowerInvariant());
                 span.SetAttr("error_code", failure.ErrorCode);
                 span.SetAttr("latency_ms_bucket", BucketLatency(failure.LatencyMs));
+                if (!string.IsNullOrEmpty(req?.patientTenureBucket))
+                {
+                    span.SetAttr("patient_tenure_bucket", req.patientTenureBucket);
+                }
 
                 if (failure.Outcome == FailureOutcome.Error)
                 {

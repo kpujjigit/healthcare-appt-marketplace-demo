@@ -163,6 +163,105 @@ export function randomSlotLockMs(outcome: "ok" | "slow" | "error"): number {
   return 100 + Math.random() * 1500;
 }
 
+// ---- Patient tenure ----
+//
+// New-patient vs. returning-patient flows touch different backend systems
+// (insurance verification is more frequent on new patients; intake has more
+// steps; provider rosters are often new-patient-restricted). Segmenting by
+// tenure lets dashboards isolate onboarding regressions from steady-state
+// regressions. Skewed toward returning patients to mirror real distributions.
+export const PATIENT_TENURE_BUCKETS = ["new_this_week", "1-30d", "30d+"] as const;
+
+export function randomPatientTenure(): typeof PATIENT_TENURE_BUCKETS[number] {
+  const r = Math.random();
+  if (r < 0.15) return "new_this_week";
+  if (r < 0.35) return "1-30d";
+  return "30d+";
+}
+
+// ---- SLO compliance flags (pre-computed booleans) ----
+//
+// Stringified ("true"/"false") for Sentry indexer reliability — same lesson
+// as backend.cache_hit. Computing breach at write time means dashboard
+// big-number widgets and alert rules stay one-step (no bucket math).
+
+// Search SLO: must return within 500ms with non-empty results AND no error.
+export function searchSloBreach(
+  outcome: "ok" | "slow" | "error",
+  resultCount: number,
+  latencyMs: number,
+): "true" | "false" {
+  if (outcome === "error") return "true";
+  if (latencyMs > 500) return "true";
+  if (resultCount === 0) return "true";
+  return "false";
+}
+
+// Verify SLO: must return verified status within 1500ms; unverified_proceed
+// counts as a breach because it shifts risk downstream silently.
+export function verifySloBreach(
+  status: string,
+  latencyMs: number,
+): "true" | "false" {
+  if (status !== "verified") return "true";
+  if (latencyMs > 1500) return "true";
+  return "false";
+}
+
+// Book SLO: must confirm within 5000ms; any non-confirmed status breaches.
+export function bookSloBreach(
+  status: string,
+  latencyMs: number,
+): "true" | "false" {
+  if (status !== "confirmed") return "true";
+  if (latencyMs > 5000) return "true";
+  return "false";
+}
+
+// ---- Booking retry attempt ----
+//
+// Frontend booking retries are invisible without this — a "confirmed" booking
+// that took 3 attempts inflates p95 silently the same way silent Availity
+// retries do. Skewed: most are 1, few are 2-3. Errors more likely to retry.
+export function randomRetryAttempt(outcome: "ok" | "slow" | "error"): number {
+  const r = Math.random();
+  if (outcome === "error") {
+    if (r < 0.5) return 1;
+    if (r < 0.85) return 2;
+    return 3;
+  }
+  if (outcome === "slow") {
+    if (r < 0.7) return 1;
+    if (r < 0.95) return 2;
+    return 3;
+  }
+  return 1;
+}
+
+// ---- Intake funnel drop step ----
+//
+// `form_step` records the step a submission landed on. `funnel_drop_step`
+// records where a patient ABANDONED — distinct signal. For successful
+// submits, drop_step = "none". For failures, drop_step usually equals the
+// current form_step (gave up at this step) but sometimes an earlier step
+// (gave up earlier and tried again later).
+export const FUNNEL_DROP_STEPS = [
+  "none",
+  ...FORM_STEPS,
+] as const;
+
+export function pickFunnelDropStep(
+  status: string,
+  currentFormStep: typeof FORM_STEPS[number],
+): typeof FUNNEL_DROP_STEPS[number] {
+  if (status === "submitted") return "none";
+  // 70% chance the abandonment is at the current step; 30% earlier.
+  if (Math.random() < 0.7) return currentFormStep;
+  const idx = FORM_STEPS.indexOf(currentFormStep);
+  if (idx <= 0) return currentFormStep;
+  return FORM_STEPS[Math.floor(Math.random() * idx)];
+}
+
 // ---- Random sample helpers ----
 
 export function randomLeadTimeHours(): number {

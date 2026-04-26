@@ -14,6 +14,9 @@ import {
   randomAppointmentValueUsd,
   bucketSlotLockMs,
   randomSlotLockMs,
+  randomPatientTenure,
+  bookSloBreach,
+  randomRetryAttempt,
 } from "@/lib/data";
 import { injectFailure } from "@/lib/inject-failure";
 
@@ -39,6 +42,7 @@ export async function POST() {
   const leadTimeHours = randomLeadTimeHours();
   const geo = pick(GEO_MARKETS);
   const apptValueUsd = randomAppointmentValueUsd();
+  const patientTenure = randomPatientTenure();
 
   return await Sentry.startSpan(
     {
@@ -55,6 +59,7 @@ export async function POST() {
         lead_time_bucket: bucketLeadTimeHours(leadTimeHours),
         geo_market: geo,
         appointment_value_usd_bucket: bucketAppointmentValueUsd(apptValueUsd),
+        patient_tenure_bucket: patientTenure,
       },
     },
     async (span) => {
@@ -98,10 +103,24 @@ export async function POST() {
         "slot_lock_duration_ms_bucket",
         bucketSlotLockMs(randomSlotLockMs(failure.outcome)),
       );
+      // retry_attempt: visible-to-frontend retries that inflate p95 silently
+      // when status = "confirmed". Same shape as the Availity retry problem.
+      const retryAttempt = randomRetryAttempt(failure.outcome);
+      span.setAttribute("retry_attempt", retryAttempt);
+      span.setAttribute("slo_breach", bookSloBreach(bookStatus, failure.latencyMs));
 
       await callBackend(
         "/api/appointment/book",
-        { appointmentId, providerId, integration, apptType, searchId },
+        {
+          appointmentId,
+          providerId,
+          integration,
+          apptType,
+          searchId,
+          appointmentValueUsdBucket: bucketAppointmentValueUsd(apptValueUsd),
+          retryAttempt,
+          patientTenureBucket: patientTenure,
+        },
         () => ({ ok: true, source: "synthetic" }),
       );
 

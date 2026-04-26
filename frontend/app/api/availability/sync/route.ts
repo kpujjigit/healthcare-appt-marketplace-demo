@@ -84,7 +84,13 @@ export async function POST() {
 
       await callBackend(
         "/api/availability/sync",
-        { syncId, providerId, integration, direction },
+        {
+          syncId,
+          providerId,
+          integration,
+          direction,
+          slotDeltaBucket: bucketSlotDelta(slotDelta),
+        },
         () => ({ ok: true, source: "synthetic" }),
       );
 

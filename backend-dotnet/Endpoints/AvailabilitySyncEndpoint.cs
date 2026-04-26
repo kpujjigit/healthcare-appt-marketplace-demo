@@ -3,11 +3,19 @@ using Sentry;
 
 namespace HealthcareApi.Endpoints;
 
+public record SyncBackendRequest(
+    string? syncId,
+    string? providerId,
+    string? integration,
+    string? direction,
+    string? slotDeltaBucket
+);
+
 public static class AvailabilitySyncEndpoint
 {
     public static IEndpointRouteBuilder MapAvailabilitySync(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/availability/sync", async () =>
+        app.MapPost("/api/availability/sync", async (SyncBackendRequest? req) =>
         {
             var span = SpanHelpers.StartBackendSpan("availability.sync.backend");
             try
@@ -30,6 +38,17 @@ public static class AvailabilitySyncEndpoint
                 span.SetAttr("status", failure.Outcome.ToString().ToLowerInvariant());
                 span.SetAttr("error_code", failure.ErrorCode);
                 span.SetAttr("latency_ms_bucket", BucketLatency(failure.LatencyMs));
+                // Forwarded fields — provider_id lets account managers debug a
+                // specific practice's sync; slot_delta_bucket correlates queue
+                // lag with how many slots actually changed in this event.
+                if (!string.IsNullOrEmpty(req?.providerId))
+                {
+                    span.SetAttr("provider_id", req.providerId);
+                }
+                if (!string.IsNullOrEmpty(req?.slotDeltaBucket))
+                {
+                    span.SetAttr("slot_delta_bucket", req.slotDeltaBucket);
+                }
 
                 if (failure.Outcome == FailureOutcome.Error)
                 {

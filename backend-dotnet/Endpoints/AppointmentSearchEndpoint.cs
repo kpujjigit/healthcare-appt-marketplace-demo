@@ -3,11 +3,19 @@ using Sentry;
 
 namespace HealthcareApi.Endpoints;
 
+public record SearchBackendRequest(
+    string? searchId,
+    string? specialty,
+    string? carrier,
+    string? geo,
+    string? patientTenureBucket
+);
+
 public static class AppointmentSearchEndpoint
 {
     public static IEndpointRouteBuilder MapAppointmentSearch(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/appointment/search", async () =>
+        app.MapPost("/api/appointment/search", async (SearchBackendRequest? req) =>
         {
             var span = SpanHelpers.StartBackendSpan("appointment.search.backend");
             try
@@ -31,14 +39,25 @@ public static class AppointmentSearchEndpoint
                     ? Random.Shared.Next(0, 30)
                     : Random.Shared.Next(40, 1800);
 
+                // is_peak_hours: cache hit rates and fanout latency behave
+                // differently at peak (US daytime UTC) vs off-peak. Computed
+                // server-side from current UTC hour. Stringified for indexer.
+                var hourUtc = DateTime.UtcNow.Hour;
+                var isPeakHours = hourUtc >= 13 && hourUtc <= 23; // 9am-7pm ET-ish
+
                 span.SetAttr("backend.cache_hit", cacheHit);
                 span.SetAttr("db.system.name", "postgres");
                 span.SetAttr("db.query_count_bucket", DataGenerators.BucketDbQueryCount(dbQueryCount));
                 span.SetAttr("downstream.availability_fanout_count", DataGenerators.BucketDownstreamCount(fanoutCount));
                 span.SetAttr("downstream.availability_fanout_latency_ms_bucket", DataGenerators.BucketFanoutLatencyMs(fanoutLatencyMs));
+                span.SetAttr("is_peak_hours", isPeakHours);
                 span.SetAttr("status", failure.Outcome.ToString().ToLowerInvariant());
                 span.SetAttr("error_code", failure.ErrorCode);
                 span.SetAttr("latency_ms_bucket", BucketLatency(failure.LatencyMs));
+                if (!string.IsNullOrEmpty(req?.patientTenureBucket))
+                {
+                    span.SetAttr("patient_tenure_bucket", req.patientTenureBucket);
+                }
 
                 if (failure.Outcome == FailureOutcome.Error)
                 {

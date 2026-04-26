@@ -10,6 +10,8 @@ import {
   bucketUploadBytes,
   bucketLatencyIntake,
   randomUploadBytes,
+  randomPatientTenure,
+  pickFunnelDropStep,
 } from "@/lib/data";
 import { injectFailure } from "@/lib/inject-failure";
 
@@ -32,6 +34,7 @@ export async function POST() {
   // New-patient intake has more steps + larger uploads → distinct funnel.
   const isNewPatient = Math.random() < 0.4;
   const geo = pick(GEO_MARKETS);
+  const patientTenure = randomPatientTenure();
 
   return await Sentry.startSpan(
     {
@@ -47,6 +50,7 @@ export async function POST() {
         is_resubmission: isResubmission,
         is_new_patient: isNewPatient,
         geo_market: geo,
+        patient_tenure_bucket: patientTenure,
       },
     },
     async (span) => {
@@ -78,10 +82,23 @@ export async function POST() {
       span.setAttribute("status", intakeStatus);
       span.setAttribute("error_code", failure.errorCode);
       span.setAttribute("latency_ms_bucket", bucketLatencyIntake(failure.latencyMs));
+      // funnel_drop_step: distinct from form_step. "none" on success;
+      // identifies WHERE a patient abandoned on failure.
+      span.setAttribute(
+        "funnel_drop_step",
+        pickFunnelDropStep(intakeStatus, formStep),
+      );
 
       await callBackend(
         "/api/intake/submit",
-        { intakeId, appointmentId, clientPlatform, formStep, uploadSize },
+        {
+          intakeId,
+          appointmentId,
+          clientPlatform,
+          formStep,
+          uploadSize,
+          patientTenureBucket: patientTenure,
+        },
         () => ({ ok: true, source: "synthetic" }),
       );
 

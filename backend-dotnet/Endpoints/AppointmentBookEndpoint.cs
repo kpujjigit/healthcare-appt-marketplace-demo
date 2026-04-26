@@ -3,11 +3,22 @@ using Sentry;
 
 namespace HealthcareApi.Endpoints;
 
+public record BookBackendRequest(
+    string? appointmentId,
+    string? providerId,
+    string? integration,
+    string? apptType,
+    string? searchId,
+    string? appointmentValueUsdBucket,
+    int? retryAttempt,
+    string? patientTenureBucket
+);
+
 public static class AppointmentBookEndpoint
 {
     public static IEndpointRouteBuilder MapAppointmentBook(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/appointment/book", async () =>
+        app.MapPost("/api/appointment/book", async (BookBackendRequest? req) =>
         {
             var span = SpanHelpers.StartBackendSpan("appointment.book.backend");
             try
@@ -32,6 +43,20 @@ public static class AppointmentBookEndpoint
                 span.SetAttr("status", failure.Outcome.ToString().ToLowerInvariant());
                 span.SetAttr("error_code", failure.ErrorCode);
                 span.SetAttr("latency_ms_bucket", BucketLatency(failure.LatencyMs));
+                // Forwarded fields — set only when present so curl-direct tests
+                // (no body) still produce a valid span.
+                if (!string.IsNullOrEmpty(req?.appointmentValueUsdBucket))
+                {
+                    span.SetAttr("appointment_value_usd_bucket", req.appointmentValueUsdBucket);
+                }
+                if (req?.retryAttempt is int retry)
+                {
+                    span.SetAttr("retry_attempt", retry);
+                }
+                if (!string.IsNullOrEmpty(req?.patientTenureBucket))
+                {
+                    span.SetAttr("patient_tenure_bucket", req.patientTenureBucket);
+                }
 
                 if (failure.Outcome == FailureOutcome.Error)
                 {

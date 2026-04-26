@@ -7,6 +7,8 @@ import {
   INSURANCE_CARRIERS,
   PLAN_TYPES,
   bucketLatencyVerify,
+  randomPatientTenure,
+  verifySloBreach,
 } from "@/lib/data";
 import { injectFailure } from "@/lib/inject-failure";
 
@@ -20,6 +22,7 @@ export async function POST() {
   const planType = pick(PLAN_TYPES);
   const verificationPath = pick(VERIFICATION_PATHS);
   const isMemberIdVerified = Math.random() > 0.1;
+  const patientTenure = randomPatientTenure();
 
   return await Sentry.startSpan(
     {
@@ -32,6 +35,7 @@ export async function POST() {
         plan_type: planType,
         is_member_id_verified: isMemberIdVerified,
         verification_path: verificationPath,
+        patient_tenure_bucket: patientTenure,
       },
     },
     async (span) => {
@@ -64,10 +68,17 @@ export async function POST() {
       span.setAttribute("status", verifyStatus);
       span.setAttribute("error_code", failure.errorCode);
       span.setAttribute("latency_ms_bucket", bucketLatencyVerify(failure.latencyMs));
+      span.setAttribute("slo_breach", verifySloBreach(verifyStatus, failure.latencyMs));
 
       await callBackend(
         "/api/insurance/verify",
-        { verificationId, carrier, planType, verificationPath },
+        {
+          verificationId,
+          carrier,
+          planType,
+          verificationPath,
+          patientTenureBucket: patientTenure,
+        },
         () => ({ ok: true, source: "synthetic" }),
       );
 

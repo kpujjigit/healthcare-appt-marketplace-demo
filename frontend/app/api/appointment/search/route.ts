@@ -9,6 +9,8 @@ import {
   GEO_MARKETS,
   bucketResultCount,
   bucketLatencyMs,
+  randomPatientTenure,
+  searchSloBreach,
 } from "@/lib/data";
 import { injectFailure } from "@/lib/inject-failure";
 
@@ -21,6 +23,7 @@ export async function POST() {
   const specialty = pick(SPECIALTY_TYPES);
   const carrier = pick(INSURANCE_CARRIERS);
   const geo = pick(GEO_MARKETS);
+  const patientTenure = randomPatientTenure();
 
   return await Sentry.startSpan(
     {
@@ -33,6 +36,7 @@ export async function POST() {
         specialty_type: specialty,
         insurance_carrier: carrier,
         geo_market: geo,
+        patient_tenure_bucket: patientTenure,
       },
     },
     async (span) => {
@@ -54,11 +58,21 @@ export async function POST() {
       span.setAttribute("error_code", failure.errorCode);
       span.setAttribute("latency_ms_bucket", bucketLatencyMs(failure.latencyMs));
       span.setAttribute("result_count_bucket", bucketResultCount(resultCount));
+      span.setAttribute(
+        "slo_breach",
+        searchSloBreach(failure.outcome, resultCount, failure.latencyMs),
+      );
 
       // Forward to backend; falls back to synthetic if backend not reachable.
       await callBackend(
         "/api/appointment/search",
-        { searchId, specialty, carrier, geo },
+        {
+          searchId,
+          specialty,
+          carrier,
+          geo,
+          patientTenureBucket: patientTenure,
+        },
         () => ({ ok: true, source: "synthetic" }),
       );
 

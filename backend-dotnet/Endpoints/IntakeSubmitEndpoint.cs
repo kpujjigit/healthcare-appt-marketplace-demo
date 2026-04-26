@@ -3,11 +3,20 @@ using Sentry;
 
 namespace HealthcareApi.Endpoints;
 
+public record IntakeBackendRequest(
+    string? intakeId,
+    string? appointmentId,
+    string? clientPlatform,
+    string? formStep,
+    int? uploadSize,
+    string? patientTenureBucket
+);
+
 public static class IntakeSubmitEndpoint
 {
     public static IEndpointRouteBuilder MapIntakeSubmit(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/intake/submit", async () =>
+        app.MapPost("/api/intake/submit", async (IntakeBackendRequest? req) =>
         {
             var span = SpanHelpers.StartBackendSpan("intake.submit.backend");
             try
@@ -30,6 +39,10 @@ public static class IntakeSubmitEndpoint
                 span.SetAttr("status", failure.Outcome.ToString().ToLowerInvariant());
                 span.SetAttr("error_code", failure.ErrorCode);
                 span.SetAttr("latency_ms_bucket", BucketLatency(failure.LatencyMs));
+                if (!string.IsNullOrEmpty(req?.patientTenureBucket))
+                {
+                    span.SetAttr("patient_tenure_bucket", req.patientTenureBucket);
+                }
 
                 if (failure.Outcome == FailureOutcome.Error)
                 {
