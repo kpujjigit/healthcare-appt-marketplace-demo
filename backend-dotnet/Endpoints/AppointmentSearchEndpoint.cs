@@ -24,11 +24,18 @@ public static class AppointmentSearchEndpoint
                 var cacheHit = Random.Shared.NextDouble() < 0.55;
                 var dbQueryCount = cacheHit ? 0 : Random.Shared.Next(1, 25);
                 var fanoutCount = Random.Shared.Next(1, 30);
+                // Fan-out latency is independent of fanout count — together they
+                // distinguish "many providers but each fast" from "few providers
+                // but each slow." Cache hits skip the fan-out entirely.
+                var fanoutLatencyMs = cacheHit
+                    ? Random.Shared.Next(0, 30)
+                    : Random.Shared.Next(40, 1800);
 
                 span.SetAttr("backend.cache_hit", cacheHit);
                 span.SetAttr("db.system.name", "postgres");
                 span.SetAttr("db.query_count_bucket", DataGenerators.BucketDbQueryCount(dbQueryCount));
                 span.SetAttr("downstream.availability_fanout_count", DataGenerators.BucketDownstreamCount(fanoutCount));
+                span.SetAttr("downstream.availability_fanout_latency_ms_bucket", DataGenerators.BucketFanoutLatencyMs(fanoutLatencyMs));
                 span.SetAttr("status", failure.Outcome.ToString().ToLowerInvariant());
                 span.SetAttr("error_code", failure.ErrorCode);
                 span.SetAttr("latency_ms_bucket", BucketLatency(failure.LatencyMs));

@@ -52,4 +52,16 @@ public static class DataGenerators
         if (n == 1) return "1";
         return "2-5";
     }
+
+    // Latency of the fan-out to the availability service, separate from the
+    // total span latency. Together with downstream.availability_fanout_count,
+    // this distinguishes "fanned out to too many" from "each call was slow."
+    public static string BucketFanoutLatencyMs(int ms)
+    {
+        if (ms < 50) return "0-50";
+        if (ms < 200) return "50-200";
+        if (ms < 500) return "200-500";
+        if (ms < 1500) return "500-1500";
+        return "1500+";
+    }
 }

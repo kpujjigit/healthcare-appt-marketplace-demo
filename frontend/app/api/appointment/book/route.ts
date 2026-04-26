@@ -6,9 +6,14 @@ import {
   uuid,
   PROVIDER_INTEGRATION_TYPES,
   APPOINTMENT_TYPES,
+  GEO_MARKETS,
   bucketLatencyBook,
   bucketLeadTimeHours,
   randomLeadTimeHours,
+  bucketAppointmentValueUsd,
+  randomAppointmentValueUsd,
+  bucketSlotLockMs,
+  randomSlotLockMs,
 } from "@/lib/data";
 import { injectFailure } from "@/lib/inject-failure";
 
@@ -24,10 +29,16 @@ export async function POST() {
   const userId = uuid();
   const appointmentId = uuid();
   const providerId = uuid();
+  // search_id propagates from the originating search span so the booking
+  // funnel can be reconstructed (search → verify → book → intake) for
+  // conversion-rate widgets in dashboards.
+  const searchId = uuid();
   const integration = pick(PROVIDER_INTEGRATION_TYPES);
   const apptType = pick(APPOINTMENT_TYPES);
   const isNewPatient = Math.random() < 0.4;
   const leadTimeHours = randomLeadTimeHours();
+  const geo = pick(GEO_MARKETS);
+  const apptValueUsd = randomAppointmentValueUsd();
 
   return await Sentry.startSpan(
     {
@@ -37,10 +48,13 @@ export async function POST() {
         user_id: userId,
         appointment_id: appointmentId,
         provider_id: providerId,
+        search_id: searchId,
         provider_integration_type: integration,
         appointment_type: apptType,
         is_new_patient: isNewPatient,
         lead_time_bucket: bucketLeadTimeHours(leadTimeHours),
+        geo_market: geo,
+        appointment_value_usd_bucket: bucketAppointmentValueUsd(apptValueUsd),
       },
     },
     async (span) => {
@@ -77,10 +91,17 @@ export async function POST() {
       span.setAttribute("status", bookStatus);
       span.setAttribute("error_code", failure.errorCode);
       span.setAttribute("latency_ms_bucket", bucketLatencyBook(failure.latencyMs));
+      // slot_lock_duration_ms_bucket: how long the booking flow held the slot lock
+      // before confirming or losing it. Together with status="slot_lost" this
+      // surfaces lock-TTL tuning data.
+      span.setAttribute(
+        "slot_lock_duration_ms_bucket",
+        bucketSlotLockMs(randomSlotLockMs(failure.outcome)),
+      );
 
       await callBackend(
         "/api/appointment/book",
-        { appointmentId, providerId, integration, apptType },
+        { appointmentId, providerId, integration, apptType, searchId },
         () => ({ ok: true, source: "synthetic" }),
       );
 

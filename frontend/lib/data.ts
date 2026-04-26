@@ -122,6 +122,47 @@ export function bucketUploadBytes(b: number): string {
   return "5MB+";
 }
 
+// ---- Booking economic value (USD) ----
+//
+// Co-pays / consult fees skew toward $0-150; specialist visits and procedures
+// pull the upper tail. Bucket boundaries chosen so each bucket gets meaningful
+// volume in the load script.
+export function bucketAppointmentValueUsd(usd: number): string {
+  if (usd < 50) return "0-50";
+  if (usd < 150) return "50-150";
+  if (usd < 500) return "150-500";
+  return "500+";
+}
+
+export function randomAppointmentValueUsd(): number {
+  const r = Math.random();
+  if (r < 0.4) return Math.random() * 50; // co-pay range
+  if (r < 0.75) return 50 + Math.random() * 100; // typical consult
+  if (r < 0.95) return 150 + Math.random() * 350; // specialist
+  return 500 + Math.random() * 2000; // procedures / out-of-network
+}
+
+// ---- Slot-lock duration (ms) — how long the booking flow held the lock ----
+//
+// Lock is acquired on slot select, released on confirm OR loss. Real-world
+// distribution skews short (<1s when intake is pre-filled); long tails happen
+// when the EHR push stalls.
+export function bucketSlotLockMs(ms: number): string {
+  if (ms < 200) return "0-200";
+  if (ms < 1000) return "200-1000";
+  if (ms < 3000) return "1000-3000";
+  if (ms < 10000) return "3000-10000";
+  return "10000+";
+}
+
+export function randomSlotLockMs(outcome: "ok" | "slow" | "error"): number {
+  // Lost-slot races are typically short (lock held briefly before another
+  // booker grabs it); slow paths hold the lock longer through the EHR push.
+  if (outcome === "error") return 50 + Math.random() * 800;
+  if (outcome === "slow") return 1500 + Math.random() * 8000;
+  return 100 + Math.random() * 1500;
+}
+
 // ---- Random sample helpers ----
 
 export function randomLeadTimeHours(): number {

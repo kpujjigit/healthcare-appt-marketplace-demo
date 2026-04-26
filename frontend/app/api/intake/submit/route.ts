@@ -6,6 +6,7 @@ import {
   uuid,
   CLIENT_PLATFORMS,
   FORM_STEPS,
+  GEO_MARKETS,
   bucketUploadBytes,
   bucketLatencyIntake,
   randomUploadBytes,
@@ -28,6 +29,9 @@ export async function POST() {
   const formStep = pick(FORM_STEPS);
   const uploadSize = randomUploadBytes();
   const isResubmission = Math.random() < 0.15;
+  // New-patient intake has more steps + larger uploads → distinct funnel.
+  const isNewPatient = Math.random() < 0.4;
+  const geo = pick(GEO_MARKETS);
 
   return await Sentry.startSpan(
     {
@@ -41,6 +45,8 @@ export async function POST() {
         form_step: formStep,
         upload_size_bucket: bucketUploadBytes(uploadSize),
         is_resubmission: isResubmission,
+        is_new_patient: isNewPatient,
+        geo_market: geo,
       },
     },
     async (span) => {

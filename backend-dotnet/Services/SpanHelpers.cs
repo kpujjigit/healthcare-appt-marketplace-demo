@@ -27,8 +27,12 @@ public static class SpanHelpers
     public static void SetAttr(this ISpan span, string key, string value) =>
         span.SetData(key, value);
 
+    // Stringify booleans explicitly. Sentry .NET 6's SetData persists bools but
+    // Sentry's span-attribute indexer treats string enums more reliably for
+    // dashboard group-by — booleans sometimes don't show up as a queryable
+    // attribute. Pinning to "true"/"false" string makes group-by widgets work.
     public static void SetAttr(this ISpan span, string key, bool value) =>
-        span.SetData(key, value);
+        span.SetData(key, value ? "true" : "false");
 
     public static void SetAttr(this ISpan span, string key, int value) =>
         span.SetData(key, value);

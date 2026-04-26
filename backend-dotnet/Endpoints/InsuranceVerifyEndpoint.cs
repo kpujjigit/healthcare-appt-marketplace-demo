@@ -24,9 +24,16 @@ public static class InsuranceVerifyEndpoint
                 var availityCalls = Random.Shared.Next(0, 4);
                 var availityStatus = DataGenerators.Pick(DataGenerators.AvailityStatusCodes);
                 var cacheLayer = DataGenerators.Pick(DataGenerators.CacheLayers);
+                // Retry count: a `200` response with call_count=3 means two retries
+                // succeeded silently. Without this, real-time latency tail looks
+                // mysteriously high. Skew toward 0 retries on 200, more on errors.
+                var availityRetries = availityStatus == "200"
+                    ? (Random.Shared.NextDouble() < 0.85 ? 0 : Random.Shared.Next(1, 3))
+                    : Random.Shared.Next(1, 4);
 
                 span.SetAttr("downstream.availity_call_count", DataGenerators.BucketAvailityCount(availityCalls));
                 span.SetAttr("downstream.availity_status_code", availityStatus);
+                span.SetAttr("downstream.availity_retry_count", availityRetries);
                 span.SetAttr("cache_layer", cacheLayer);
                 span.SetAttr("status", failure.Outcome.ToString().ToLowerInvariant());
                 span.SetAttr("error_code", failure.ErrorCode);
