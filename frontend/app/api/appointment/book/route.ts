@@ -105,8 +105,11 @@ export async function POST() {
       );
       // retry_attempt: visible-to-frontend retries that inflate p95 silently
       // when status = "confirmed". Same shape as the Availity retry problem.
+      // Stringified ("1"/"2"/"3") for indexer reliability — same lesson as
+      // backend.cache_hit and slo_breach. Numeric span attributes don't
+      // surface in dashboard group-by widgets the way string enums do.
       const retryAttempt = randomRetryAttempt(failure.outcome);
-      span.setAttribute("retry_attempt", retryAttempt);
+      span.setAttribute("retry_attempt", String(retryAttempt));
       span.setAttribute("slo_breach", bookSloBreach(bookStatus, failure.latencyMs));
 
       await callBackend(
